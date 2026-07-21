@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
@@ -18,6 +20,22 @@ public class UserController {
     @PostMapping
     public UserResponse create(@Valid @RequestBody CreateUserRequest request) {
         return service.create(request);
+    }
+
+    @GetMapping
+    public List<UserResponse> getAllUsers() {
+
+        return service.getAllUsers();
+
+    }
+
+    @GetMapping("/{id}")
+    public UserResponse getUserById(
+            @PathVariable Long id
+    ) {
+
+        return service.getUserById(id);
+
     }
 
 }

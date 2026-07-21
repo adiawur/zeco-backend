@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -54,6 +56,70 @@ public class UserService {
                 .zone(savedUser.getZone())
                 .active(savedUser.getActive())
                 .build();
+    }
+
+
+
+    public List<UserResponse> getAllUsers() {
+
+        return repository.findAll()
+
+                .stream()
+
+                .map(user -> UserResponse.builder()
+
+                        .id(user.getId())
+
+                        .fullName(user.getFullName())
+
+                        .username(user.getUsername())
+
+                        .email(user.getEmail())
+
+                        .phone(user.getPhone())
+
+                        .role(user.getRole())
+
+                        .specialization(user.getSpecialization())
+
+                        .zone(user.getZone())
+
+                        .active(user.getActive())
+
+                        .build())
+
+                .toList();
+
+    }
+
+    public UserResponse getUserById(Long id) {
+
+        User user = repository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found"));
+
+        return UserResponse.builder()
+
+                .id(user.getId())
+
+                .fullName(user.getFullName())
+
+                .username(user.getUsername())
+
+                .email(user.getEmail())
+
+                .phone(user.getPhone())
+
+                .role(user.getRole())
+
+                .specialization(user.getSpecialization())
+
+                .zone(user.getZone())
+
+                .active(user.getActive())
+
+                .build();
+
     }
 
 }
