@@ -28,4 +28,6 @@ public class UpdateUserRequest {
 
     private String zone;
 
+    private String imageUrl;
+
 }

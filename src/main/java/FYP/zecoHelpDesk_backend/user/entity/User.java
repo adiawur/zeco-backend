@@ -35,6 +35,8 @@ public class User {
 
     private String zone;
 
+    private String imageUrl;
+
     @Builder.Default
     private Boolean active = true;
 

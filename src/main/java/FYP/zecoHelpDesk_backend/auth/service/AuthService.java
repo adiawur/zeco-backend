@@ -5,9 +5,14 @@ import FYP.zecoHelpDesk_backend.auth.dto.LoginResponse;
 import FYP.zecoHelpDesk_backend.security.jwt.JwtService;
 import FYP.zecoHelpDesk_backend.user.entity.User;
 import FYP.zecoHelpDesk_backend.user.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,40 +25,110 @@ public class AuthService {
 
     private final JwtService jwtService;
 
-    public LoginResponse login(LoginRequest request){
 
-        authenticationManager.authenticate(
+    // =========================================================
+    // LOGIN
+    // =========================================================
 
-                new UsernamePasswordAuthenticationToken(
+    public LoginResponse login(
+            LoginRequest request
+    ) {
 
-                        request.getUsername(),
-
-                        request.getPassword()
-
-                )
-
-        );
-
-        User user = userRepository.findByUsername(
-
+        String loginValue =
                 request.getUsername()
+                        .trim();
 
-        ).orElseThrow();
 
-        String token = jwtService.generateToken(user);
+        // =====================================================
+        // FIND USER
+        // =====================================================
+
+        User user =
+                userRepository
+                        .findByUsernameIgnoreCase(loginValue)
+                        .orElseGet(() ->
+
+                                userRepository
+                                        .findByEmailIgnoreCase(loginValue)
+                                        .orElseThrow(() ->
+                                                new BadCredentialsException(
+                                                        "Invalid username or password"
+                                                )
+                                        )
+                        );
+
+
+        // =====================================================
+        // CHECK ACTIVE ACCOUNT
+        // =====================================================
+
+        if (
+                user.getActive() == null
+                        ||
+                        !user.getActive()
+        ) {
+
+            throw new DisabledException(
+                    "Your account is inactive"
+            );
+        }
+
+
+        // =====================================================
+        // AUTHENTICATE
+        // =====================================================
+
+        try {
+
+            authenticationManager.authenticate(
+
+                    new UsernamePasswordAuthenticationToken(
+
+                            user.getUsername(),
+
+                            request.getPassword()
+
+                    )
+            );
+
+        } catch (BadCredentialsException exception) {
+
+            throw new BadCredentialsException(
+                    "Invalid username or password"
+            );
+        }
+
+
+        // =====================================================
+        // GENERATE JWT
+        // =====================================================
+
+        String token =
+                jwtService.generateToken(user);
+
+
+        // =====================================================
+        // RESPONSE
+        // =====================================================
 
         return LoginResponse.builder()
 
                 .token(token)
 
-                .username(user.getUsername())
+                .username(
+                        user.getUsername()
+                )
 
-                .fullName(user.getFullName())
+                .fullName(
+                        user.getFullName()
+                )
 
-                .role(user.getRole())
+                .role(
+                        user.getRole()
+                )
+
+                .userId(user.getId())
 
                 .build();
-
     }
-
 }

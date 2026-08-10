@@ -30,5 +30,6 @@ public class CreateUserRequest {
     private String specialization;
 
     private String zone;
+    private String imageUrl;
 
 }

@@ -16,4 +16,6 @@ public class LoginResponse {
 
     private Role role;
 
+    private Long userId;
+
 }

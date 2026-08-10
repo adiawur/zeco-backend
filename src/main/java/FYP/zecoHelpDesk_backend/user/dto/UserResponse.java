@@ -26,4 +26,6 @@ public class UserResponse {
 
     private Boolean active;
 
+    private String imageUrl;
+
 }
