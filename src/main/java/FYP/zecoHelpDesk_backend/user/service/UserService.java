@@ -583,4 +583,96 @@ public class UserService {
                 .active(user.getActive())
                 .build();
     }
-}
+
+    public UserResponse getMyProfile(
+            String username
+    ) {
+
+        User user =
+                repository.findByUsername(username)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "User not found"
+                                )
+                        );
+
+        return toResponse(user);
+    }
+
+    public UserResponse updateMyProfile(
+            String username,
+            UpdateUserRequest request
+    ) {
+
+        User user =
+                repository.findByUsername(username)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "User not found"
+                                )
+                        );
+
+
+        // UPDATE BASIC INFORMATION
+
+        user.setFullName(
+                request.getFullName()
+        );
+
+
+        user.setUsername(
+                request.getUsername()
+        );
+
+        user.setEmail(
+                request.getEmail()
+        );
+
+        user.setPhone(
+                request.getPhone()
+        );
+
+        // =====================================================
+        // UPDATE TECHNICIAN INFORMATION
+        // =====================================================
+
+        user.setSpecialization(
+                request.getSpecialization()
+        );
+
+        user.setZone(
+                request.getZone()
+        );
+
+
+        // =====================================================
+        // UPDATE PROFILE IMAGE URL
+        // =====================================================
+
+        if (
+                request.getImageUrl() != null
+                        &&
+                        !request.getImageUrl().isBlank()
+        ) {
+
+            user.setImageUrl(
+                    request.getImageUrl()
+            );
+
+        }
+
+
+        // =====================================================
+        // SAVE
+        // =====================================================
+
+        User savedUser =
+                repository.save(user);
+
+
+        return toResponse(
+                savedUser
+        );
+    }
+
+    }

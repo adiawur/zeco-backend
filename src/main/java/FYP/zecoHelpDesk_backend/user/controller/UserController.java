@@ -1,5 +1,5 @@
 package FYP.zecoHelpDesk_backend.user.controller;
-
+import org.springframework.security.core.Authentication;
 import FYP.zecoHelpDesk_backend.user.dto.CreateUserRequest;
 import FYP.zecoHelpDesk_backend.user.dto.UpdateUserRequest;
 import FYP.zecoHelpDesk_backend.user.dto.UserResponse;
@@ -108,5 +108,35 @@ public class UserController {
                                 user.getActive()
                 )
                 .toList();
+    }
+
+    // PROFILE
+
+    @GetMapping("/profile/me")
+    public UserResponse getMyProfile(
+            Authentication authentication
+    ) {
+
+        return service.getMyProfile(
+                authentication.getName()
+        );
+    }
+
+
+    @PutMapping("/profile/me")
+    public UserResponse updateMyProfile(
+
+            Authentication authentication,
+
+            @Valid
+            @RequestBody
+            UpdateUserRequest request
+
+    ) {
+
+        return service.updateMyProfile(
+                authentication.getName(),
+                request
+        );
     }
 }

@@ -576,24 +576,40 @@ public class AssignmentService {
 
         try {
 
+            // -----------------------------------------------------
+            // UPLOAD DIRECTORY
+            // -----------------------------------------------------
+
             String uploadDirectory =
-                    "uploads/incidents/completion/";
+                    "uploads/incidents/completion";
 
             File directory =
-                    new File(
-                            uploadDirectory
-                    );
+                    new File(uploadDirectory);
 
+            // -----------------------------------------------------
+            // CREATE DIRECTORY
+            // -----------------------------------------------------
 
             if (!directory.exists()) {
 
-                directory.mkdirs();
+                boolean created =
+                        directory.mkdirs();
+
+                if (!created && !directory.exists()) {
+
+                    throw new RuntimeException(
+                            "Unable to create upload directory: "
+                                    + directory.getAbsolutePath()
+                    );
+                }
             }
 
+            // -----------------------------------------------------
+            // FILE NAME
+            // -----------------------------------------------------
 
             String originalName =
                     photo.getOriginalFilename();
-
 
             if (
                     originalName == null
@@ -602,41 +618,76 @@ public class AssignmentService {
             ) {
 
                 originalName =
-                        "completion-photo";
+                        "completion-photo.jpg";
             }
 
-
+            // Prevent path traversal
             originalName =
-                    new File(
-                            originalName
-                    ).getName();
-
+                    new File(originalName)
+                            .getName();
 
             String fileName =
                     System.currentTimeMillis()
                             + "_"
                             + originalName;
 
+            // -----------------------------------------------------
+            // FINAL FILE
+            // -----------------------------------------------------
 
             File file =
                     new File(
-                            uploadDirectory
-                                    + fileName
+                            directory,
+                            fileName
                     );
 
+            // -----------------------------------------------------
+            // LOG PATH
+            // -----------------------------------------------------
 
-            photo.transferTo(
-                    file
+            System.out.println(
+                    "Saving completion photo to: "
+                            + file.getAbsolutePath()
             );
 
+            // -----------------------------------------------------
+            // SAVE FILE
+            // -----------------------------------------------------
+
+            photo.transferTo(
+                    file.toPath()
+            );
+
+            // -----------------------------------------------------
+            // VERIFY
+            // -----------------------------------------------------
+
+            if (!file.exists()) {
+
+                throw new RuntimeException(
+                        "Photo file was not created: "
+                                + file.getAbsolutePath()
+                );
+            }
+
+            System.out.println(
+                    "Completion photo saved successfully: "
+                            + file.getAbsolutePath()
+            );
 
             return fileName;
 
-
         } catch (Exception e) {
 
+            // IMPORTANT:
+            // Show the real error in backend console
+
+            e.printStackTrace();
+
             throw new RuntimeException(
-                    "Failed to save completion photo"
+                    "Failed to save completion photo: "
+                            + e.getMessage(),
+                    e
             );
         }
     }
