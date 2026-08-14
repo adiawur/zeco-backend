@@ -3,6 +3,7 @@ package FYP.zecoHelpDesk_backend.incident.dto;
 import FYP.zecoHelpDesk_backend.incident.entity.IncidentStatus;
 import FYP.zecoHelpDesk_backend.incident.entity.IncidentType;
 import FYP.zecoHelpDesk_backend.incident.entity.Priority;
+import FYP.zecoHelpDesk_backend.util.Zone;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -75,4 +76,10 @@ public class IncidentResponse {
     private String resolutionNotes;
 
     private Boolean slaAlertSent;
+
+    private Zone zone;
+
+    private Boolean complaintAllowed;
+
+    private LocalDateTime assignedAt;
 }

@@ -31,7 +31,7 @@ public class AssignmentController {
 
     // =========================================================
     // SUPERVISOR
-    // ASSIGN INCIDENT TO TECHNICIAN
+    // ASSIGN INCIDENT
     // =========================================================
 
     @PostMapping("/supervisor/assignments")
@@ -39,49 +39,61 @@ public class AssignmentController {
 
             @Valid
             @RequestBody
-            AssignmentRequest request
+            AssignmentRequest request,
+
+            Authentication authentication
 
     ) {
 
         return service.assign(
-                request
+                request,
+                authentication
         );
     }
 
 
     // =========================================================
     // SUPERVISOR
-    // GET ALL ASSIGNMENTS
+    // GET MY ZONE ASSIGNMENTS
     // =========================================================
 
     @GetMapping("/supervisor/assignments")
-    public List<AssignmentResponse> getAll() {
+    public List<AssignmentResponse> getAll(
 
-        return service.getAll();
+            Authentication authentication
+
+    ) {
+
+        return service.getAll(
+                authentication
+        );
     }
 
 
     // =========================================================
     // SUPERVISOR
-    // GET ASSIGNMENT BY ID
+    // GET ASSIGNMENT
     // =========================================================
 
     @GetMapping("/supervisor/assignments/{id}")
     public AssignmentResponse getById(
 
-            @PathVariable Long id
+            @PathVariable Long id,
+
+            Authentication authentication
 
     ) {
 
         return service.getById(
-                id
+                id,
+                authentication
         );
     }
 
 
     // =========================================================
     // SUPERVISOR
-    // GET ASSIGNMENTS BY TECHNICIAN
+    // GET TECHNICIAN ASSIGNMENTS
     // =========================================================
 
     @GetMapping(
@@ -89,19 +101,22 @@ public class AssignmentController {
     )
     public List<AssignmentResponse> getByTechnician(
 
-            @PathVariable Long technicianId
+            @PathVariable Long technicianId,
+
+            Authentication authentication
 
     ) {
 
         return service.getByTechnician(
-                technicianId
+                technicianId,
+                authentication
         );
     }
 
 
     // =========================================================
     // SUPERVISOR
-    // RESOLVE INCIDENT
+    // RESOLVE
     // =========================================================
 
     @PatchMapping(
@@ -109,19 +124,22 @@ public class AssignmentController {
     )
     public AssignmentResponse resolve(
 
-            @PathVariable Long id
+            @PathVariable Long id,
+
+            Authentication authentication
 
     ) {
 
         return service.resolve(
-                id
+                id,
+                authentication
         );
     }
 
 
     // =========================================================
     // TECHNICIAN
-    // GET MY ASSIGNMENTS
+    // MY ASSIGNMENTS
     // =========================================================
 
     @GetMapping(
@@ -141,7 +159,7 @@ public class AssignmentController {
 
     // =========================================================
     // TECHNICIAN
-    // GET MY ASSIGNMENT BY ID
+    // MY ASSIGNMENT
     // =========================================================
 
     @GetMapping(
@@ -184,10 +202,11 @@ public class AssignmentController {
         );
     }
 
+
     // =========================================================
-// TECHNICIAN
-// COMPLETE WORK
-// =========================================================
+    // TECHNICIAN
+    // COMPLETE WORK
+    // =========================================================
 
     @PostMapping(
             value = "/technician/assignments/{id}/complete",
@@ -216,15 +235,10 @@ public class AssignmentController {
                         CompleteAssignmentRequest.class
                 );
 
-
         return service.completeWork(
-
                 id,
-
                 request,
-
                 photo,
-
                 authentication
         );
     }

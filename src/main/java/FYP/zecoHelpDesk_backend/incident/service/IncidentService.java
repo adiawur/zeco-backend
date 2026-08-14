@@ -1,13 +1,18 @@
 package FYP.zecoHelpDesk_backend.incident.service;
 
+import FYP.zecoHelpDesk_backend.assignment.entity.Assignment;
+import FYP.zecoHelpDesk_backend.assignment.repository.AssignmentRepository;
 import FYP.zecoHelpDesk_backend.incident.dto.IncidentRequest;
 import FYP.zecoHelpDesk_backend.incident.dto.IncidentResponse;
+import FYP.zecoHelpDesk_backend.incident.dto.TrackIncidentRequest;
 import FYP.zecoHelpDesk_backend.incident.entity.Incident;
 import FYP.zecoHelpDesk_backend.incident.entity.IncidentStatus;
 import FYP.zecoHelpDesk_backend.incident.entity.IncidentType;
 import FYP.zecoHelpDesk_backend.incident.entity.Priority;
 import FYP.zecoHelpDesk_backend.incident.repository.IncidentRepository;
 import FYP.zecoHelpDesk_backend.util.LocationUtil;
+import FYP.zecoHelpDesk_backend.util.Zone;
+import FYP.zecoHelpDesk_backend.util.ZoneUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,6 +23,7 @@ import java.io.File;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +32,7 @@ public class IncidentService {
     private final IncidentRepository repository;
 
     private final LocationUtil locationUtil;
+    private final AssignmentRepository assignmentRepository;
 
 
     // =========================================================
@@ -127,11 +134,11 @@ public class IncidentService {
                         )
 
                         .reporterName(
-                                request.getReporterName()
+                                request.getReporterName().trim()
                         )
 
                         .phone(
-                                request.getPhone()
+                                request.getPhone().trim()
                         )
 
                         .email(
@@ -219,28 +226,22 @@ public class IncidentService {
     ) {
 
         Priority priority =
-                priorityForType(
-                        type
-                );
-
+                priorityForType(type);
 
         /*
-         * SRS:
-         * High-priority complaints must be addressed
-         * within ZECO's maximum response time,
-         * e.g. 2 hours.
+         * Current SRS logic:
          *
-         * Medium and Low SLA values are not finalized.
-         * Therefore no values are invented.
+         * HIGH = 2 hours
+         *
+         * Medium and Low remain without
+         * a fixed SLA because their values
+         * have not been finalized.
          */
 
-        if (
-                priority == Priority.HIGH
-        ) {
+        if (priority == Priority.HIGH) {
 
             return reportedAt.plusHours(2);
         }
-
 
         return null;
     }
@@ -254,21 +255,11 @@ public class IncidentService {
             Incident incident
     ) {
 
-        // -----------------------------------------------------
-        // NO SLA
-        // -----------------------------------------------------
-
-        if (
-                incident.getSlaDeadline() == null
-        ) {
+        if (incident.getSlaDeadline() == null) {
 
             return "NOT_APPLICABLE";
         }
 
-
-        // -----------------------------------------------------
-        // COMPLETED / RESOLVED
-        // -----------------------------------------------------
 
         if (
                 incident.getStatus() == IncidentStatus.RESOLVED
@@ -283,26 +274,15 @@ public class IncidentService {
         LocalDateTime now =
                 LocalDateTime.now();
 
-
         LocalDateTime deadline =
                 incident.getSlaDeadline();
 
 
-        // -----------------------------------------------------
-        // SLA BREACHED
-        // -----------------------------------------------------
-
-        if (
-                now.isAfter(deadline)
-        ) {
+        if (now.isAfter(deadline)) {
 
             return "BREACHED";
         }
 
-
-        // -----------------------------------------------------
-        // REMAINING TIME
-        // -----------------------------------------------------
 
         long remainingMinutes =
                 Duration.between(
@@ -311,21 +291,11 @@ public class IncidentService {
                 ).toMinutes();
 
 
-        // -----------------------------------------------------
-        // AT RISK
-        // -----------------------------------------------------
-
-        if (
-                remainingMinutes <= 30
-        ) {
+        if (remainingMinutes <= 30) {
 
             return "AT_RISK";
         }
 
-
-        // -----------------------------------------------------
-        // ON TIME
-        // -----------------------------------------------------
 
         return "ON_TIME";
     }
@@ -339,9 +309,7 @@ public class IncidentService {
             Incident incident
     ) {
 
-        if (
-                incident.getReportedAt() == null
-        ) {
+        if (incident.getReportedAt() == null) {
 
             return 0L;
         }
@@ -362,9 +330,7 @@ public class IncidentService {
             Incident incident
     ) {
 
-        if (
-                incident.getSlaDeadline() == null
-        ) {
+        if (incident.getSlaDeadline() == null) {
 
             return null;
         }
@@ -374,6 +340,169 @@ public class IncidentService {
                 LocalDateTime.now(),
                 incident.getSlaDeadline()
         ).toMinutes();
+    }
+
+
+    // =========================================================
+    // PUBLIC INCIDENT TRACKING
+    // NO LOGIN REQUIRED
+    //
+    // fullName + phone = required identity
+    // email = optional additional verification
+    // =========================================================
+
+    public List<IncidentResponse> trackIncidents(
+            TrackIncidentRequest request
+    ) {
+
+        if (request == null) {
+
+            throw new RuntimeException(
+                    "Tracking information is required"
+            );
+        }
+
+
+        String fullName =
+                request.getFullName() == null
+                        ? ""
+                        : request.getFullName().trim();
+
+        String phone =
+                request.getPhone() == null
+                        ? ""
+                        : request.getPhone().trim();
+
+        String email =
+                request.getEmail() == null
+                        ? ""
+                        : request.getEmail().trim();
+
+
+        // -----------------------------------------------------
+        // REQUIRED FIELDS
+        // -----------------------------------------------------
+
+        if (fullName.isBlank()) {
+
+            throw new RuntimeException(
+                    "Full name is required"
+            );
+        }
+
+
+        if (phone.isBlank()) {
+
+            throw new RuntimeException(
+                    "Phone number is required"
+            );
+        }
+
+
+        List<Incident> incidents;
+
+
+        // -----------------------------------------------------
+        // EMAIL PROVIDED
+        // -----------------------------------------------------
+
+        if (!email.isBlank()) {
+
+            incidents =
+                    repository
+                            .findByReporterNameIgnoreCaseAndPhoneAndEmail(
+                                    fullName,
+                                    phone,
+                                    email
+                            );
+
+        }
+
+        // -----------------------------------------------------
+        // EMAIL NOT PROVIDED
+        // -----------------------------------------------------
+
+        else {
+
+            incidents =
+                    repository
+                            .findByReporterNameIgnoreCaseAndPhone(
+                                    fullName,
+                                    phone
+                            );
+        }
+
+
+        // -----------------------------------------------------
+        // RETURN ALL MATCHING INCIDENTS
+        // -----------------------------------------------------
+
+        return incidents
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+
+    // =========================================================
+    // GET INCIDENT ZONE
+    //
+    // No database column required.
+    //
+    // Zone is calculated directly from the incident
+    // latitude and longitude.
+    // =========================================================
+
+    public Zone getIncidentZone(
+            Incident incident
+    ) {
+
+        if (incident == null) {
+
+            throw new RuntimeException(
+                    "Incident is required"
+            );
+        }
+
+
+        if (
+                incident.getLatitude() == null
+                        ||
+                        incident.getLongitude() == null
+        ) {
+
+            return Zone.ZANZIBAR;
+        }
+
+
+        return ZoneUtils.getZoneByCoordinates(
+                incident.getLatitude(),
+                incident.getLongitude()
+        );
+    }
+
+
+    // =========================================================
+    // GET INCIDENT ZONE BY ID
+    // =========================================================
+
+    public Zone getIncidentZoneById(
+            Long incidentId
+    ) {
+
+        Incident incident =
+                repository.findById(
+                        incidentId
+                ).orElseThrow(() ->
+                        new RuntimeException(
+                                "Incident not found"
+                        )
+                );
+
+
+        return getIncidentZone(
+                incident
+        );
     }
 
 
@@ -488,10 +617,6 @@ public class IncidentService {
                         incident.getAttachment()
                 )
 
-                // -------------------------------------------------
-                // TECHNICIAN COMPLETION NOTES
-                // -------------------------------------------------
-
                 .resolutionNotes(
                         incident.getResolutionNotes()
                 )
@@ -511,10 +636,6 @@ public class IncidentService {
                 .updatedAt(
                         incident.getUpdatedAt()
                 )
-
-                // -------------------------------------------------
-                // SLA
-                // -------------------------------------------------
 
                 .slaDeadline(
                         incident.getSlaDeadline()
@@ -542,6 +663,10 @@ public class IncidentService {
                         incident.getSlaAlertSent()
                 )
 
+                .complaintAllowed(
+                        canSubmitComplaint(incident)
+                )
+
                 .build();
     }
 
@@ -563,7 +688,6 @@ public class IncidentService {
 
                     true;
 
-
             default ->
 
                     false;
@@ -581,10 +705,6 @@ public class IncidentService {
 
         try {
 
-            // -------------------------------------------------
-            // UPLOAD DIRECTORY
-            // -------------------------------------------------
-
             java.nio.file.Path uploadDirectory =
                     java.nio.file.Paths
                             .get(
@@ -596,18 +716,10 @@ public class IncidentService {
                             .normalize();
 
 
-            // -------------------------------------------------
-            // CREATE DIRECTORY
-            // -------------------------------------------------
-
             java.nio.file.Files.createDirectories(
                     uploadDirectory
             );
 
-
-            // -------------------------------------------------
-            // ORIGINAL FILE NAME
-            // -------------------------------------------------
 
             String originalName =
                     photo.getOriginalFilename();
@@ -624,29 +736,17 @@ public class IncidentService {
             }
 
 
-            // -------------------------------------------------
-            // REMOVE UNSAFE PATH
-            // -------------------------------------------------
-
             originalName =
                     new File(
                             originalName
                     ).getName();
 
 
-            // -------------------------------------------------
-            // UNIQUE FILE NAME
-            // -------------------------------------------------
-
             String fileName =
                     System.currentTimeMillis()
                             + "_"
                             + originalName;
 
-
-            // -------------------------------------------------
-            // FINAL PATH
-            // -------------------------------------------------
 
             java.nio.file.Path targetPath =
                     uploadDirectory
@@ -655,10 +755,6 @@ public class IncidentService {
                             )
                             .normalize();
 
-
-            // -------------------------------------------------
-            // COPY FILE
-            // -------------------------------------------------
 
             try (
                     java.io.InputStream inputStream =
@@ -673,10 +769,6 @@ public class IncidentService {
             }
 
 
-            // -------------------------------------------------
-            // RETURN FILE NAME
-            // -------------------------------------------------
-
             return fileName;
 
 
@@ -689,5 +781,81 @@ public class IncidentService {
                             + e.getMessage()
             );
         }
+    }
+
+    // =========================================================
+// CUSTOMER COMPLAINT / FEEDBACK ELIGIBILITY
+//
+// Customer can complain when:
+// 1. Incident has been assigned to technician
+// 2. Assignment delay has passed
+// 3. Incident is not completed/resolved/closed
+// =========================================================
+
+    public boolean canSubmitComplaint(
+            Incident incident
+    ) {
+
+        if (incident == null) {
+            return false;
+        }
+
+        // -----------------------------------------------------
+        // FINAL STATUSES
+        // -----------------------------------------------------
+
+        if (
+                incident.getStatus() == IncidentStatus.COMPLETED
+                        ||
+                        incident.getStatus() == IncidentStatus.RESOLVED
+                        ||
+                        incident.getStatus() == IncidentStatus.CLOSED
+        ) {
+
+            return false;
+        }
+
+
+        // -----------------------------------------------------
+        // FIND ASSIGNMENT
+        // -----------------------------------------------------
+
+        Assignment assignment =
+                assignmentRepository
+                        .findByIncident(incident)
+                        .orElse(null);
+
+
+        // -----------------------------------------------------
+        // NOT ASSIGNED YET
+        // -----------------------------------------------------
+
+        if (
+                assignment == null
+                        ||
+                        assignment.getAssignedAt() == null
+        ) {
+
+            return false;
+        }
+
+
+        // -----------------------------------------------------
+        // ASSIGNMENT DELAY
+        // -----------------------------------------------------
+        //
+        // Customer can complain after 30 minutes.
+        //
+        // You can later move this to application.properties.
+        // -----------------------------------------------------
+
+        LocalDateTime complaintTime =
+                assignment
+                        .getAssignedAt()
+                        .plusMinutes(30);
+
+
+        return LocalDateTime.now()
+                .isAfter(complaintTime);
     }
 }

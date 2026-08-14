@@ -1,12 +1,20 @@
 package FYP.zecoHelpDesk_backend.incident.controller;
 
+import FYP.zecoHelpDesk_backend.incident.dto.IncidentComplaintRequest;
 import FYP.zecoHelpDesk_backend.incident.dto.IncidentRequest;
 import FYP.zecoHelpDesk_backend.incident.dto.IncidentResponse;
 import FYP.zecoHelpDesk_backend.incident.entity.Incident;
+import FYP.zecoHelpDesk_backend.incident.entity.IncidentComplaint;
 import FYP.zecoHelpDesk_backend.incident.repository.IncidentRepository;
+import FYP.zecoHelpDesk_backend.incident.service.IncidentComplaintService;
 import FYP.zecoHelpDesk_backend.incident.service.IncidentService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +31,8 @@ public class IncidentController {
     private final IncidentRepository repository;
 
     private final ObjectMapper objectMapper;
+
+    private final IncidentComplaintService complaintService;
 
 
     // =========================================================
@@ -61,6 +71,30 @@ public class IncidentController {
 
 
     // =========================================================
+    // PUBLIC TRACK INCIDENTS
+    //
+    // NO LOGIN REQUIRED
+    //
+    // fullName + phone required
+    // email optional
+    // =========================================================
+
+    @PostMapping("/track")
+    public List<IncidentResponse> trackIncidents(
+
+            @Valid
+            @RequestBody
+            FYP.zecoHelpDesk_backend.incident.dto.TrackIncidentRequest request
+
+    ) {
+
+        return service.trackIncidents(
+                request
+        );
+    }
+
+
+    // =========================================================
     // GET ALL INCIDENTS
     // =========================================================
 
@@ -80,7 +114,9 @@ public class IncidentController {
 
     @GetMapping("/{id}")
     public IncidentResponse getById(
+
             @PathVariable Long id
+
     ) {
 
         Incident incident =
@@ -104,11 +140,15 @@ public class IncidentController {
 
     @GetMapping("/ticket/{ticketId}")
     public IncidentResponse getByTicket(
+
             @PathVariable String ticketId
+
     ) {
 
         Incident incident =
-                repository.findByTicketId(ticketId)
+                repository.findByTicketId(
+                                ticketId
+                        )
                         .orElseThrow(() ->
                                 new RuntimeException(
                                         "Incident not found"
@@ -118,6 +158,24 @@ public class IncidentController {
 
         return service.toResponse(
                 incident
+        );
+    }
+
+    // =========================================================
+// PUBLIC CUSTOMER COMPLAINT
+// =========================================================
+
+    @PostMapping("/complaint")
+    public IncidentComplaint submitComplaint(
+
+            @Valid
+            @RequestBody
+            IncidentComplaintRequest request
+
+    ) {
+
+        return complaintService.submit(
+                request
         );
     }
 }

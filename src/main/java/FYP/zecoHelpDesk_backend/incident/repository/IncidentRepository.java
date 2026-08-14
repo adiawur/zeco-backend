@@ -16,4 +16,15 @@ public interface IncidentRepository
             LocalDateTime time
     );
 
+    List<Incident> findByReporterNameIgnoreCaseAndPhone(
+            String reporterName,
+            String phone
+    );
+
+    List<Incident> findByReporterNameIgnoreCaseAndPhoneAndEmail(
+            String reporterName,
+            String phone,
+            String email
+    );
+
 }

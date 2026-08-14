@@ -11,6 +11,8 @@ import FYP.zecoHelpDesk_backend.notification.service.EmailNotificationService;
 import FYP.zecoHelpDesk_backend.user.entity.User;
 import FYP.zecoHelpDesk_backend.user.repository.UserRepository;
 import FYP.zecoHelpDesk_backend.assignment.dto.CompleteAssignmentRequest;
+import FYP.zecoHelpDesk_backend.util.Zone;
+import FYP.zecoHelpDesk_backend.util.ZoneUtils;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -38,46 +40,122 @@ public class AssignmentService {
     // =========================================================
     // ASSIGN INCIDENT TO TECHNICIAN
     // =========================================================
-
     public AssignmentResponse assign(
-            AssignmentRequest request
+            AssignmentRequest request,
+            Authentication authentication
     ) {
 
-        // -----------------------------------------------------
-        // FIND INCIDENT
-        // -----------------------------------------------------
+        // =====================================================
+        // GET LOGGED-IN SUPERVISOR
+        // =====================================================
 
-        Incident incident =
-                incidentRepository.findById(
-                        request.getIncidentId()
-                ).orElseThrow(() ->
-                        new RuntimeException(
-                                "Incident not found"
+        User supervisor =
+                userRepository
+                        .findByUsername(
+                                authentication.getName()
                         )
-                );
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
 
 
-        // -----------------------------------------------------
-        // FIND TECHNICIAN
-        // -----------------------------------------------------
-
-        User technician =
-                userRepository.findById(
-                        request.getTechnicianId()
-                ).orElseThrow(() ->
-                        new RuntimeException(
-                                "Technician not found"
-                        )
-                );
-
-
-        // -----------------------------------------------------
-        // CHECK TECHNICIAN ROLE
-        // -----------------------------------------------------
+        // =====================================================
+        // CHECK SUPERVISOR ROLE
+        // =====================================================
 
         if (
-                technician.getRole() == null
-                        ||
+                supervisor.getRole() == null ||
+                        !supervisor.getRole()
+                                .name()
+                                .equals("SUPERVISOR")
+        ) {
+
+            throw new RuntimeException(
+                    "Only supervisors can assign incidents"
+            );
+        }
+
+
+        // =====================================================
+        // SUPERVISOR ZONE
+        // =====================================================
+
+        if (
+                supervisor.getZone() == null ||
+                        supervisor.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Supervisor has no assigned zone"
+            );
+        }
+
+
+        // =====================================================
+        // FIND INCIDENT
+        // =====================================================
+
+        Incident incident =
+                incidentRepository
+                        .findById(
+                                request.getIncidentId()
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Incident not found"
+                                )
+                        );
+
+
+        // =====================================================
+        // FIND INCIDENT ZONE
+        // =====================================================
+
+        Zone incidentZone =
+                getIncidentZone(incident);
+
+
+        // =====================================================
+        // CHECK INCIDENT BELONGS TO SUPERVISOR ZONE
+        // =====================================================
+
+        if (
+                !incidentZone.name()
+                        .equalsIgnoreCase(
+                                supervisor.getZone()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "You are not allowed to assign incidents outside your zone"
+            );
+        }
+
+
+        // =====================================================
+        // FIND TECHNICIAN
+        // =====================================================
+
+        User technician =
+                userRepository
+                        .findById(
+                                request.getTechnicianId()
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Technician not found"
+                                )
+                        );
+
+
+        // =====================================================
+        // CHECK TECHNICIAN ROLE
+        // =====================================================
+
+        if (
+                technician.getRole() == null ||
                         !technician.getRole()
                                 .name()
                                 .equals("TECHNICIAN")
@@ -89,11 +167,14 @@ public class AssignmentService {
         }
 
 
-        // -----------------------------------------------------
-        // CHECK ACTIVE STATUS
-        // -----------------------------------------------------
+        // =====================================================
+        // CHECK ACTIVE
+        // =====================================================
 
-        if (!technician.getActive()) {
+        if (
+                technician.getActive() == null ||
+                        !technician.getActive()
+        ) {
 
             throw new RuntimeException(
                     "Selected technician is inactive"
@@ -101,9 +182,37 @@ public class AssignmentService {
         }
 
 
-        // -----------------------------------------------------
+        // =====================================================
+        // CHECK TECHNICIAN ZONE
+        // =====================================================
+
+        if (
+                technician.getZone() == null ||
+                        technician.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Technician has no assigned zone"
+            );
+        }
+
+
+        if (
+                !technician.getZone()
+                        .equalsIgnoreCase(
+                                incidentZone.name()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "Technician does not belong to the incident zone"
+            );
+        }
+
+
+        // =====================================================
         // CHECK EXISTING ASSIGNMENT
-        // -----------------------------------------------------
+        // =====================================================
 
         if (
                 assignmentRepository
@@ -117,21 +226,17 @@ public class AssignmentService {
         }
 
 
-        // -----------------------------------------------------
+        // =====================================================
         // CREATE ASSIGNMENT
-        // -----------------------------------------------------
+        // =====================================================
 
         Assignment assignment =
                 Assignment.builder()
-
                         .incident(incident)
-
                         .technician(technician)
-
                         .assignedAt(
                                 LocalDateTime.now()
                         )
-
                         .build();
 
 
@@ -141,9 +246,9 @@ public class AssignmentService {
                 );
 
 
-        // -----------------------------------------------------
-        // UPDATE INCIDENT STATUS
-        // -----------------------------------------------------
+        // =====================================================
+        // UPDATE INCIDENT
+        // =====================================================
 
         incident.setStatus(
                 IncidentStatus.ASSIGNED
@@ -158,13 +263,12 @@ public class AssignmentService {
         );
 
 
-        // -----------------------------------------------------
+        // =====================================================
         // NOTIFY TECHNICIAN
-        // -----------------------------------------------------
+        // =====================================================
 
         if (
-                technician.getEmail() != null
-                        &&
+                technician.getEmail() != null &&
                         !technician.getEmail().isBlank()
         ) {
 
@@ -191,16 +295,65 @@ public class AssignmentService {
         );
     }
 
-
     // =========================================================
     // GET ALL ASSIGNMENTS
     // =========================================================
 
-    public List<AssignmentResponse> getAll() {
+    public List<AssignmentResponse> getAll(
+            Authentication authentication
+    ) {
+
+        User supervisor =
+                userRepository
+                        .findByUsername(
+                                authentication.getName()
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
+
+        if (
+                supervisor.getRole() == null ||
+                        !supervisor.getRole()
+                                .name()
+                                .equals("SUPERVISOR")
+        ) {
+
+            throw new RuntimeException(
+                    "Only supervisors can access this resource"
+            );
+        }
+
+        if (
+                supervisor.getZone() == null ||
+                        supervisor.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Supervisor has no assigned zone"
+            );
+        }
 
         return assignmentRepository
                 .findAll()
                 .stream()
+                .filter(assignment -> {
+
+                    Incident incident =
+                            assignment.getIncident();
+
+                    Zone zone =
+                            getIncidentZone(
+                                    incident
+                            );
+
+                    return zone.name()
+                            .equalsIgnoreCase(
+                                    supervisor.getZone()
+                            );
+                })
                 .map(this::toResponse)
                 .toList();
     }
@@ -211,8 +364,20 @@ public class AssignmentService {
     // =========================================================
 
     public AssignmentResponse getById(
-            Long id
+            Long id,
+            Authentication authentication
     ) {
+
+        User supervisor =
+                userRepository
+                        .findByUsername(
+                                authentication.getName()
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
 
         Assignment assignment =
                 assignmentRepository
@@ -222,6 +387,24 @@ public class AssignmentService {
                                         "Assignment not found"
                                 )
                         );
+
+        Incident incident =
+                assignment.getIncident();
+
+        Zone incidentZone =
+                getIncidentZone(incident);
+
+        if (
+                !incidentZone.name()
+                        .equalsIgnoreCase(
+                                supervisor.getZone()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "You are not allowed to access this assignment"
+            );
+        }
 
         return toResponse(
                 assignment
@@ -234,22 +417,57 @@ public class AssignmentService {
     // =========================================================
 
     public List<AssignmentResponse> getByTechnician(
-            Long technicianId
+            Long technicianId,
+            Authentication authentication
     ) {
 
-        User technician =
-                userRepository.findById(
-                        technicianId
-                ).orElseThrow(() ->
-                        new RuntimeException(
-                                "Technician not found"
+        User supervisor =
+                userRepository
+                        .findByUsername(
+                                authentication.getName()
                         )
-                );
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
 
+        User technician =
+                userRepository
+                        .findById(technicianId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Technician not found"
+                                )
+                        );
+
+        if (
+                !technician.getZone()
+                        .equalsIgnoreCase(
+                                supervisor.getZone()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "You cannot view technicians outside your zone"
+            );
+        }
 
         return assignmentRepository
                 .findByTechnician(technician)
                 .stream()
+                .filter(assignment -> {
+
+                    Zone zone =
+                            getIncidentZone(
+                                    assignment.getIncident()
+                            );
+
+                    return zone.name()
+                            .equalsIgnoreCase(
+                                    supervisor.getZone()
+                            );
+                })
                 .map(this::toResponse)
                 .toList();
     }
@@ -691,28 +909,106 @@ public class AssignmentService {
             );
         }
     }
-
     // =========================================================
 // SUPERVISOR RESOLVE INCIDENT
 // =========================================================
 
     public AssignmentResponse resolve(
-            Long assignmentId
+            Long assignmentId,
+            Authentication authentication
     ) {
 
-        Assignment assignment =
-                assignmentRepository.findById(
-                        assignmentId
-                ).orElseThrow(() ->
-                        new RuntimeException(
-                                "Assignment not found"
-                        )
-                );
+        // -----------------------------------------------------
+        // GET LOGGED-IN SUPERVISOR
+        // -----------------------------------------------------
 
+        User supervisor =
+                userRepository
+                        .findByUsername(
+                                authentication.getName()
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
+
+        // -----------------------------------------------------
+        // CHECK ROLE
+        // -----------------------------------------------------
+
+        if (
+                supervisor.getRole() == null ||
+                        !supervisor.getRole()
+                                .name()
+                                .equals("SUPERVISOR")
+        ) {
+
+            throw new RuntimeException(
+                    "Only supervisors can resolve incidents"
+            );
+        }
+
+        // -----------------------------------------------------
+        // CHECK SUPERVISOR ZONE
+        // -----------------------------------------------------
+
+        if (
+                supervisor.getZone() == null ||
+                        supervisor.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Supervisor has no assigned zone"
+            );
+        }
+
+        // -----------------------------------------------------
+        // FIND ASSIGNMENT
+        // -----------------------------------------------------
+
+        Assignment assignment =
+                assignmentRepository
+                        .findById(assignmentId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Assignment not found"
+                                )
+                        );
+
+        // -----------------------------------------------------
+        // GET INCIDENT
+        // -----------------------------------------------------
 
         Incident incident =
                 assignment.getIncident();
 
+        // -----------------------------------------------------
+        // DETERMINE INCIDENT ZONE
+        // -----------------------------------------------------
+
+        Zone incidentZone =
+                getIncidentZone(incident);
+
+        // -----------------------------------------------------
+        // CHECK INCIDENT BELONGS TO SUPERVISOR ZONE
+        // -----------------------------------------------------
+
+        if (
+                !incidentZone.name()
+                        .equalsIgnoreCase(
+                                supervisor.getZone()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "You are not allowed to resolve incidents outside your zone"
+            );
+        }
+
+        // -----------------------------------------------------
+        // CHECK STATUS
+        // -----------------------------------------------------
 
         if (
                 incident.getStatus()
@@ -724,6 +1020,9 @@ public class AssignmentService {
             );
         }
 
+        // -----------------------------------------------------
+        // RESOLVE
+        // -----------------------------------------------------
 
         incident.setStatus(
                 IncidentStatus.RESOLVED
@@ -733,33 +1032,26 @@ public class AssignmentService {
                 LocalDateTime.now()
         );
 
-
         incidentRepository.save(
                 incident
         );
 
-
         // -----------------------------------------------------
-        // CUSTOMER NOTIFICATION
+        // CUSTOMER EMAIL NOTIFICATION
         // -----------------------------------------------------
 
         if (
-                incident.getEmail() != null
-                        &&
+                incident.getEmail() != null &&
                         !incident.getEmail().isBlank()
         ) {
 
             emailNotificationService
                     .sendStatusNotification(
-
                             incident.getEmail(),
-
                             incident.getTicketId(),
-
                             IncidentStatus.RESOLVED.name()
                     );
         }
-
 
         return toResponse(
                 assignment
@@ -834,6 +1126,20 @@ public class AssignmentService {
 
         return toResponse(
                 assignment
+        );
+    }
+    private Zone getIncidentZone(Incident incident) {
+
+        if (
+                incident.getLatitude() == null ||
+                        incident.getLongitude() == null
+        ) {
+            return Zone.ZANZIBAR;
+        }
+
+        return ZoneUtils.getZoneByCoordinates(
+                incident.getLatitude(),
+                incident.getLongitude()
         );
     }
 }

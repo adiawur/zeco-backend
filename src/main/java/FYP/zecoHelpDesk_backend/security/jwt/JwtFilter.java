@@ -12,11 +12,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.lang.NonNull;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -33,7 +36,8 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
     // =========================================================
-    // SKIP JWT FOR PUBLIC ENDPOINTS
+    // PUBLIC ENDPOINTS
+    // JWT FILTER WILL NOT RUN FOR THESE
     // =========================================================
 
     @Override
@@ -49,7 +53,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
         // -----------------------------------------------------
-        // LOGIN / AUTH
+        // AUTH
         // -----------------------------------------------------
 
         if (path.startsWith("/api/auth/")) {
@@ -57,11 +61,9 @@ public class JwtFilter extends OncePerRequestFilter {
             return true;
         }
 
-
-        // -----------------------------------------------------
-        // PUBLIC INCIDENT REPORTING
-        // ONLY THIS INCIDENT ENDPOINT IS PUBLIC
-        // -----------------------------------------------------
+// =========================================================
+// PUBLIC INCIDENT REPORT
+// =========================================================
 
         if (
                 method.equalsIgnoreCase("POST")
@@ -73,9 +75,49 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
 
+// =========================================================
+// PUBLIC INCIDENT TRACKING
+// =========================================================
+
+        if (
+                method.equalsIgnoreCase("POST")
+                        &&
+                        path.equals("/api/incidents/track")
+        ) {
+
+            return true;
+        }
+
+
+// =========================================================
+// PUBLIC INCIDENT COMPLAINT
+// =========================================================
+
+        if (
+                method.equalsIgnoreCase("POST")
+                        &&
+                        path.equals("/api/incidents/complaint")
+        ) {
+
+            return true;
+        }
+
+
         // -----------------------------------------------------
-        // ALL OTHER ENDPOINTS
-        // JWT FILTER WILL RUN
+        // CORS PREFLIGHT
+        // -----------------------------------------------------
+
+        if (
+                method.equalsIgnoreCase("OPTIONS")
+        ) {
+
+            return true;
+        }
+
+
+        // -----------------------------------------------------
+        // ALL OTHER REQUESTS
+        // JWT FILTER RUNS
         // -----------------------------------------------------
 
         return false;
@@ -99,7 +141,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
         // =====================================================
-        // AUTHORIZATION HEADER
+        // GET AUTHORIZATION HEADER
         // =====================================================
 
         String authHeader =
@@ -126,7 +168,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
         // =====================================================
-        // GET TOKEN
+        // EXTRACT TOKEN
         // =====================================================
 
         String token =
@@ -184,7 +226,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
                 // =============================================
-                // GET USER FROM DATABASE
+                // FIND USER
                 // =============================================
 
                 User user =
@@ -194,13 +236,15 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
                 // =============================================
-                // VALIDATE TOKEN
+                // VALIDATE USER + TOKEN
                 // =============================================
 
                 if (
                         user != null
                                 &&
-                                user.getActive()
+                                Boolean.TRUE.equals(
+                                        user.getActive()
+                                )
                                 &&
                                 jwtService.isTokenValid(
                                         token,
@@ -263,7 +307,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
         // =====================================================
-        // CONTINUE REQUEST
+        // CONTINUE
         // =====================================================
 
         filterChain.doFilter(

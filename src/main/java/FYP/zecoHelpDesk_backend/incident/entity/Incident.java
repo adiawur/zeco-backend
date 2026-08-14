@@ -1,5 +1,6 @@
 package FYP.zecoHelpDesk_backend.incident.entity;
 
+import FYP.zecoHelpDesk_backend.util.Zone;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -66,5 +67,7 @@ public class Incident {
     private String resolutionNotes;
 
     private Boolean slaAlertSent;
-
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Zone zone;
 }

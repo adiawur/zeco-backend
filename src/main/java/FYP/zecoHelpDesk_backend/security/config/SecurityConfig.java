@@ -21,7 +21,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import org.springframework.web.cors.CorsConfiguration;
@@ -73,11 +72,13 @@ public class SecurityConfig {
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
+
         configuration.setAllowedOrigins(
                 List.of(
                         "http://localhost:4200"
                 )
         );
+
 
         configuration.setAllowedMethods(
                 List.of(
@@ -90,13 +91,13 @@ public class SecurityConfig {
                 )
         );
 
+
         configuration.setAllowedHeaders(
                 List.of(
-                        "Authorization",
-                        "Content-Type",
-                        "Accept"
+                        "*"
                 )
         );
+
 
         configuration.setExposedHeaders(
                 List.of(
@@ -104,16 +105,19 @@ public class SecurityConfig {
                 )
         );
 
+
         configuration.setAllowCredentials(false);
 
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
 
+
         source.registerCorsConfiguration(
                 "/**",
                 configuration
         );
+
 
         return source;
     }
@@ -128,7 +132,9 @@ public class SecurityConfig {
             HttpSecurity http
     ) throws Exception {
 
+
         http
+
 
                 // =================================================
                 // CORS
@@ -148,7 +154,7 @@ public class SecurityConfig {
 
 
                 // =================================================
-                // STATELESS JWT SESSION
+                // SESSION
                 // =================================================
 
                 .sessionManagement(session ->
@@ -167,7 +173,7 @@ public class SecurityConfig {
 
 
                         // -------------------------------------------------
-                        // CORS PREFLIGHT
+                        // OPTIONS / PREFLIGHT
                         // -------------------------------------------------
 
                         .requestMatchers(
@@ -186,12 +192,22 @@ public class SecurityConfig {
 
 
                         // -------------------------------------------------
-                        // CUSTOMER INCIDENT REPORT
+                        // PUBLIC INCIDENT REPORT
                         // -------------------------------------------------
 
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/incidents/report"
+                        ).permitAll()
+
+
+                        // -------------------------------------------------
+                        // PUBLIC INCIDENT TRACKING
+                        // -------------------------------------------------
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/incidents/track"
                         ).permitAll()
 
 
@@ -223,9 +239,12 @@ public class SecurityConfig {
 
 
                         // -------------------------------------------------
-                        // INCIDENTS
+                        // OTHER INCIDENT ENDPOINTS
                         // -------------------------------------------------
-
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/incidents/complaint"
+                        ).permitAll()
                         .requestMatchers(
                                 "/api/incidents/**"
                         ).hasAnyRole(
@@ -270,16 +289,17 @@ public class SecurityConfig {
 
 
                 // =================================================
-                // UNAUTHORIZED
+                // EXCEPTION HANDLING
                 // =================================================
 
                 .exceptionHandling(exception ->
 
                         exception
 
-                                // =================================================
-                                // 401 - NOT AUTHENTICATED
-                                // =================================================
+
+                                // =============================================
+                                // 401
+                                // =============================================
 
                                 .authenticationEntryPoint(
                                         (request, response, authException) -> {
@@ -288,9 +308,11 @@ public class SecurityConfig {
                                                     HttpStatus.UNAUTHORIZED.value()
                                             );
 
+
                                             response.setContentType(
                                                     "application/json"
                                             );
+
 
                                             response.getWriter().write(
                                                     """
@@ -305,9 +327,9 @@ public class SecurityConfig {
                                 )
 
 
-                                // =================================================
-                                // 403 - ACCESS DENIED
-                                // =================================================
+                                // =============================================
+                                // 403
+                                // =============================================
 
                                 .accessDeniedHandler(
                                         (request, response, accessDeniedException) -> {
@@ -316,9 +338,11 @@ public class SecurityConfig {
                                                     HttpStatus.FORBIDDEN.value()
                                             );
 
+
                                             response.setContentType(
                                                     "application/json"
                                             );
+
 
                                             response.getWriter().write(
                                                     """
