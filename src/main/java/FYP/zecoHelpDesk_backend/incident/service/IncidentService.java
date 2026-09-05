@@ -89,6 +89,23 @@ public class IncidentService {
 
 
         // -----------------------------------------------------
+        // AUTOMATIC ZONE
+        // -----------------------------------------------------
+        //
+        // Zone is determined automatically from the
+        // latitude and longitude supplied by the system.
+        //
+        // The citizen does not enter the zone manually.
+        // -----------------------------------------------------
+
+        Zone zone =
+                ZoneUtils.getZoneByCoordinates(
+                        request.getLatitude(),
+                        request.getLongitude()
+                );
+
+
+        // -----------------------------------------------------
         // AUTOMATIC PRIORITY
         // -----------------------------------------------------
 
@@ -173,6 +190,10 @@ public class IncidentService {
                                 request.getLongitude()
                         )
 
+                        .zone(
+                                zone
+                        )
+
                         .attachment(
                                 attachment
                         )
@@ -251,28 +272,28 @@ public class IncidentService {
     }
 
 
-    /// =========================================================
-// SLA STATUS
-// =========================================================
-//
-// SLA states:
-//
-// NOT_APPLICABLE
-//      -> Incident has no SLA deadline
-//
-// COMPLETED
-//      -> Incident has been completed/resolved/closed
-//
-// BREACHED
-//      -> SLA deadline has passed while incident is still active
-//
-// AT_RISK
-//      -> 30 minutes or less remaining
-//
-// ON_TIME
-//      -> SLA is still within allowed time
-//
-// =========================================================
+    // =========================================================
+    // SLA STATUS
+    // =========================================================
+    //
+    // SLA states:
+    //
+    // NOT_APPLICABLE
+    //      -> Incident has no SLA deadline
+    //
+    // COMPLETED
+    //      -> Incident has been completed/resolved/closed
+    //
+    // BREACHED
+    //      -> SLA deadline has passed while incident is still active
+    //
+    // AT_RISK
+    //      -> 30 minutes or less remaining
+    //
+    // ON_TIME
+    //      -> SLA is still within allowed time
+    //
+    // =========================================================
 
     private String calculateSlaStatus(
             Incident incident
@@ -526,10 +547,9 @@ public class IncidentService {
     // =========================================================
     // GET INCIDENT ZONE
     //
-    // No database column required.
-    //
-    // Zone is calculated directly from the incident
-    // latitude and longitude.
+    // Zone is already stored in the incident record.
+    // It is assigned automatically when the incident
+    // is reported using latitude and longitude.
     // =========================================================
 
     public Zone getIncidentZone(
@@ -544,20 +564,19 @@ public class IncidentService {
         }
 
 
-        if (
-                incident.getLatitude() == null
-                        ||
-                        incident.getLongitude() == null
-        ) {
+        // -----------------------------------------------------
+        // READ STORED ZONE
+        // -----------------------------------------------------
 
-            return Zone.ZANZIBAR;
+        if (incident.getZone() == null) {
+
+            throw new RuntimeException(
+                    "Incident has no assigned zone"
+            );
         }
 
 
-        return ZoneUtils.getZoneByCoordinates(
-                incident.getLatitude(),
-                incident.getLongitude()
-        );
+        return incident.getZone();
     }
 
 
@@ -862,14 +881,15 @@ public class IncidentService {
         }
     }
 
+
     // =========================================================
-// CUSTOMER COMPLAINT / FEEDBACK ELIGIBILITY
-//
-// Customer can complain when:
-// 1. Incident has been assigned to technician
-// 2. Assignment delay has passed
-// 3. Incident is not completed/resolved/closed
-// =========================================================
+    // CUSTOMER COMPLAINT / FEEDBACK ELIGIBILITY
+    //
+    // Customer can complain when:
+    // 1. Incident has been assigned to technician
+    // 2. Assignment delay has passed
+    // 3. Incident is not completed/resolved/closed
+    // =========================================================
 
     public boolean canSubmitComplaint(
             Incident incident
@@ -938,10 +958,11 @@ public class IncidentService {
                 .isAfter(complaintTime);
     }
 
+
     // =========================================================
-// SUPERVISOR
-// GET INCIDENTS FROM MY ZONE ONLY
-// =========================================================
+    // SUPERVISOR
+    // GET INCIDENTS FROM MY ZONE ONLY
+    // =========================================================
 
     public List<IncidentResponse> getSupervisorZoneIncidents(
             Authentication authentication
