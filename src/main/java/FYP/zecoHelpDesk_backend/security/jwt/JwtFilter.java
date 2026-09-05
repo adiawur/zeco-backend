@@ -61,7 +61,7 @@ public class JwtFilter extends OncePerRequestFilter {
             return true;
         }
 
-// =========================================================
+        // =========================================================
 // PUBLIC INCIDENT REPORT
 // =========================================================
 
@@ -90,7 +90,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
 // =========================================================
-// PUBLIC INCIDENT COMPLAINT
+// PUBLIC INCIDENT COMPLAINT / FEEDBACK
 // =========================================================
 
         if (

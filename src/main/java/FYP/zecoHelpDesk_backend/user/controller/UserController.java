@@ -1,9 +1,10 @@
 package FYP.zecoHelpDesk_backend.user.controller;
+
 import org.springframework.security.core.Authentication;
+
 import FYP.zecoHelpDesk_backend.user.dto.CreateUserRequest;
 import FYP.zecoHelpDesk_backend.user.dto.UpdateUserRequest;
 import FYP.zecoHelpDesk_backend.user.dto.UserResponse;
-import FYP.zecoHelpDesk_backend.user.repository.UserRepository;
 import FYP.zecoHelpDesk_backend.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -23,23 +24,21 @@ public class UserController {
 
     private final UserService service;
 
-    private final UserRepository repository;
 
-
+    // =========================
     // ADMIN
+    // =========================
 
     @PostMapping("/admin/users")
     public UserResponse create(
             @Valid @RequestBody CreateUserRequest request
     ) {
-
         return service.create(request);
     }
 
 
     @GetMapping("/admin/users")
     public List<UserResponse> getAllUsers() {
-
         return service.getAllUsers();
     }
 
@@ -48,7 +47,6 @@ public class UserController {
     public UserResponse getUserById(
             @PathVariable Long id
     ) {
-
         return service.getUserById(id);
     }
 
@@ -58,7 +56,6 @@ public class UserController {
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request
     ) {
-
         return service.update(id, request);
     }
 
@@ -67,7 +64,6 @@ public class UserController {
     public UserResponse changeStatus(
             @PathVariable Long id
     ) {
-
         return service.changeStatus(id);
     }
 
@@ -76,7 +72,6 @@ public class UserController {
     public String delete(
             @PathVariable Long id
     ) {
-
         service.delete(id);
 
         return "User deleted successfully";
@@ -88,29 +83,28 @@ public class UserController {
             @PathVariable Long id,
             @RequestParam("image") MultipartFile image
     ) {
-
         return service.uploadImage(id, image);
     }
 
 
+    // =========================
     // SUPERVISOR
+    // =========================
 
     @GetMapping("/supervisor/technicians")
-    public List<UserResponse> getTechnicians() {
+    public List<UserResponse> getSupervisorTechnicians(
+            Authentication authentication
+    ) {
 
-        return service.getAllUsers()
-                .stream()
-                .filter(user ->
-                        user.getRole() != null
-                                &&
-                                user.getRole().name().equals("TECHNICIAN")
-                                &&
-                                user.getActive()
-                )
-                .toList();
+        return service.getTechniciansForSupervisor(
+                authentication
+        );
     }
 
+
+    // =========================
     // PROFILE
+    // =========================
 
     @GetMapping("/profile/me")
     public UserResponse getMyProfile(
@@ -125,13 +119,8 @@ public class UserController {
 
     @PutMapping("/profile/me")
     public UserResponse updateMyProfile(
-
             Authentication authentication,
-
-            @Valid
-            @RequestBody
-            UpdateUserRequest request
-
+            @Valid @RequestBody UpdateUserRequest request
     ) {
 
         return service.updateMyProfile(

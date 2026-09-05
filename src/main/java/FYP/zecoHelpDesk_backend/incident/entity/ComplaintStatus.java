@@ -6,5 +6,6 @@ public enum ComplaintStatus {
 
     REVIEWED,
 
-    RESOLVED
+    RESOLVED,
+    REPLIED
 }

@@ -487,6 +487,99 @@ public class AssignmentService {
         User technician =
                 assignment.getTechnician();
 
+        Zone incidentZone =
+                getIncidentZone(incident);
+
+
+        // =====================================================
+        // SLA CALCULATION
+        // =====================================================
+
+        String slaStatus = "NOT_APPLICABLE";
+
+        Long remainingMinutes = null;
+
+        Long elapsedMinutes = null;
+
+
+        if (incident.getSlaDeadline() != null) {
+
+            LocalDateTime now =
+                    LocalDateTime.now();
+
+            LocalDateTime deadline =
+                    incident.getSlaDeadline();
+
+
+            // -------------------------------------------------
+            // FINAL STATUS
+            // -------------------------------------------------
+
+            if (
+                    incident.getStatus() == IncidentStatus.RESOLVED
+                            ||
+                            incident.getStatus() == IncidentStatus.CLOSED
+            ) {
+
+                slaStatus = "COMPLETED";
+
+            }
+
+            // -------------------------------------------------
+            // SLA BREACHED
+            // -------------------------------------------------
+
+            else if (now.isAfter(deadline)) {
+
+                slaStatus = "BREACHED";
+
+            }
+
+            // -------------------------------------------------
+            // SLA AT RISK
+            // -------------------------------------------------
+
+            else {
+
+                remainingMinutes =
+                        java.time.Duration
+                                .between(
+                                        now,
+                                        deadline
+                                )
+                                .toMinutes();
+
+                if (remainingMinutes <= 30) {
+
+                    slaStatus = "AT_RISK";
+
+                } else {
+
+                    slaStatus = "ON_TIME";
+                }
+            }
+        }
+
+
+        // =====================================================
+        // ELAPSED TIME
+        // =====================================================
+
+        if (incident.getReportedAt() != null) {
+
+            elapsedMinutes =
+                    java.time.Duration
+                            .between(
+                                    incident.getReportedAt(),
+                                    LocalDateTime.now()
+                            )
+                            .toMinutes();
+        }
+
+
+        // =====================================================
+        // RESPONSE
+        // =====================================================
 
         return AssignmentResponse.builder()
 
@@ -522,9 +615,62 @@ public class AssignmentService {
                         assignment.getCompletedAt()
                 )
 
+                // =================================================
+                // INCIDENT
+                // =================================================
+
+                .incidentStatus(
+                        incident.getStatus() != null
+                                ? incident.getStatus().name()
+                                : null
+                )
+
+                .priority(
+                        incident.getPriority() != null
+                                ? incident.getPriority().name()
+                                : null
+                )
+
+                .incidentType(
+                        incident.getIncidentType() != null
+                                ? incident.getIncidentType().name()
+                                : null
+                )
+
+                .location(
+                        incident.getLocation()
+                )
+
+                // =================================================
+                // SLA
+                // =================================================
+
+                .slaDeadline(
+                        incident.getSlaDeadline()
+                )
+
+                .slaStatus(
+                        slaStatus
+                )
+
+                .remainingMinutes(
+                        remainingMinutes
+                )
+
+                .elapsedMinutes(
+                        elapsedMinutes
+                )
+
+                // =================================================
+                // ZONE
+                // =================================================
+
+                .zone(
+                        incidentZone.name()
+                )
+
                 .build();
     }
-
     // =========================================================
 // TECHNICIAN START WORK
 // =========================================================
@@ -1060,6 +1206,8 @@ public class AssignmentService {
 
     // =========================================================
 // GET LOGGED-IN TECHNICIAN ASSIGNMENTS
+// TECHNICIAN CAN SEE HIS/HER ASSIGNMENTS
+// FROM HIS/HER ZONE ONLY
 // =========================================================
 
     public List<AssignmentResponse> getByTechnicianUsername(
@@ -1075,14 +1223,64 @@ public class AssignmentService {
                                 )
                         );
 
+        // -----------------------------------------------------
+        // CHECK ROLE
+        // -----------------------------------------------------
+
+        if (
+                technician.getRole() == null ||
+                        !technician.getRole()
+                                .name()
+                                .equals("TECHNICIAN")
+        ) {
+
+            throw new RuntimeException(
+                    "Only technicians can access their assignments"
+            );
+        }
+
+        // -----------------------------------------------------
+        // CHECK TECHNICIAN ZONE
+        // -----------------------------------------------------
+
+        if (
+                technician.getZone() == null ||
+                        technician.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Technician has no assigned zone"
+            );
+        }
+
+        // -----------------------------------------------------
+        // GET ASSIGNMENTS
+        // -----------------------------------------------------
 
         return assignmentRepository
                 .findByTechnician(technician)
                 .stream()
+
+                // -------------------------------------------------
+                // ENSURE INCIDENT BELONGS TO TECHNICIAN ZONE
+                // -------------------------------------------------
+
+                .filter(assignment -> {
+
+                    Zone incidentZone =
+                            getIncidentZone(
+                                    assignment.getIncident()
+                            );
+
+                    return incidentZone.name()
+                            .equalsIgnoreCase(
+                                    technician.getZone()
+                            );
+                })
+
                 .map(this::toResponse)
                 .toList();
     }
-
     // =========================================================
 // TECHNICIAN
 // GET MY ASSIGNMENT BY ID
@@ -1140,6 +1338,297 @@ public class AssignmentService {
         return ZoneUtils.getZoneByCoordinates(
                 incident.getLatitude(),
                 incident.getLongitude()
+        );
+    }
+
+    // =========================================================
+// SUPERVISOR REASSIGN INCIDENT
+// =========================================================
+
+    public AssignmentResponse reassign(
+            Long assignmentId,
+            Long newTechnicianId,
+            Authentication authentication
+    ) {
+
+        // =====================================================
+        // GET LOGGED-IN SUPERVISOR
+        // =====================================================
+
+        User supervisor =
+                userRepository
+                        .findByUsername(
+                                authentication.getName()
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
+
+
+        // =====================================================
+        // CHECK ROLE
+        // =====================================================
+
+        if (
+                supervisor.getRole() == null
+                        ||
+                        !supervisor.getRole()
+                                .name()
+                                .equals("SUPERVISOR")
+        ) {
+
+            throw new RuntimeException(
+                    "Only supervisors can reassign incidents"
+            );
+        }
+
+
+        // =====================================================
+        // CHECK SUPERVISOR ZONE
+        // =====================================================
+
+        if (
+                supervisor.getZone() == null
+                        ||
+                        supervisor.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Supervisor has no assigned zone"
+            );
+        }
+
+
+        // =====================================================
+        // FIND ASSIGNMENT
+        // =====================================================
+
+        Assignment assignment =
+                assignmentRepository
+                        .findById(assignmentId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Assignment not found"
+                                )
+                        );
+
+
+        Incident incident =
+                assignment.getIncident();
+
+
+        // =====================================================
+        // INCIDENT ZONE
+        // =====================================================
+
+        Zone incidentZone =
+                getIncidentZone(incident);
+
+
+        // =====================================================
+        // CHECK ZONE
+        // =====================================================
+
+        if (
+                !incidentZone.name()
+                        .equalsIgnoreCase(
+                                supervisor.getZone()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "You are not allowed to reassign incidents outside your zone"
+            );
+        }
+
+
+        // =====================================================
+        // CHECK INCIDENT STATUS
+        // =====================================================
+
+        if (
+                incident.getStatus() == IncidentStatus.COMPLETED
+                        ||
+                        incident.getStatus() == IncidentStatus.RESOLVED
+                        ||
+                        incident.getStatus() == IncidentStatus.CLOSED
+        ) {
+
+            throw new RuntimeException(
+                    "Completed or resolved incidents cannot be reassigned"
+            );
+        }
+
+
+        // =====================================================
+        // FIND NEW TECHNICIAN
+        // =====================================================
+
+        User newTechnician =
+                userRepository
+                        .findById(
+                                newTechnicianId
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Technician not found"
+                                )
+                        );
+
+
+        // =====================================================
+        // CHECK ROLE
+        // =====================================================
+
+        if (
+                newTechnician.getRole() == null
+                        ||
+                        !newTechnician.getRole()
+                                .name()
+                                .equals("TECHNICIAN")
+        ) {
+
+            throw new RuntimeException(
+                    "Selected user is not a technician"
+            );
+        }
+
+
+        // =====================================================
+        // CHECK ACTIVE
+        // =====================================================
+
+        if (
+                newTechnician.getActive() == null
+                        ||
+                        !newTechnician.getActive()
+        ) {
+
+            throw new RuntimeException(
+                    "Selected technician is inactive"
+            );
+        }
+
+
+        // =====================================================
+        // CHECK TECHNICIAN ZONE
+        // =====================================================
+
+        if (
+                newTechnician.getZone() == null
+                        ||
+                        newTechnician.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Technician has no assigned zone"
+            );
+        }
+
+
+        if (
+                !newTechnician.getZone()
+                        .equalsIgnoreCase(
+                                incidentZone.name()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "Technician does not belong to the incident zone"
+            );
+        }
+
+
+        // =====================================================
+        // PREVENT SAME TECHNICIAN
+        // =====================================================
+
+        if (
+                assignment.getTechnician()
+                        .getId()
+                        .equals(
+                                newTechnician.getId()
+                        )
+        ) {
+
+            throw new RuntimeException(
+                    "This technician is already assigned to the incident"
+            );
+        }
+
+
+        // =====================================================
+        // REASSIGN
+        // =====================================================
+
+        assignment.setTechnician(
+                newTechnician
+        );
+
+        assignment.setAssignedAt(
+                LocalDateTime.now()
+        );
+
+        assignment.setCompletedAt(
+                null
+        );
+
+
+        Assignment saved =
+                assignmentRepository.save(
+                        assignment
+                );
+
+
+        // =====================================================
+        // INCIDENT STATUS
+        // =====================================================
+
+        incident.setStatus(
+                IncidentStatus.ASSIGNED
+        );
+
+        incident.setUpdatedAt(
+                LocalDateTime.now()
+        );
+
+        incidentRepository.save(
+                incident
+        );
+
+
+        // =====================================================
+        // NOTIFY NEW TECHNICIAN
+        // =====================================================
+
+        if (
+                newTechnician.getEmail() != null
+                        &&
+                        !newTechnician.getEmail().isBlank()
+        ) {
+
+            emailNotificationService
+                    .sendAssignmentNotification(
+
+                            newTechnician.getEmail(),
+
+                            newTechnician.getFullName(),
+
+                            incident.getTicketId(),
+
+                            incident.getIncidentType().name(),
+
+                            incident.getPriority().name(),
+
+                            incident.getLocation()
+                    );
+        }
+
+
+        return toResponse(
+                saved
         );
     }
 }

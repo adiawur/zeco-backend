@@ -210,6 +210,15 @@ public class SecurityConfig {
                                 "/api/incidents/track"
                         ).permitAll()
 
+                                // -------------------------------------------------
+                        // PUBLIC INCIDENT COMPLAINT / FEEDBACK
+                        // -------------------------------------------------
+
+                                .requestMatchers(
+                                        HttpMethod.POST,
+                                        "/api/incidents/complaint"
+                                ).permitAll()
+
 
                         // -------------------------------------------------
                         // ADMIN
@@ -241,10 +250,8 @@ public class SecurityConfig {
                         // -------------------------------------------------
                         // OTHER INCIDENT ENDPOINTS
                         // -------------------------------------------------
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/incidents/complaint"
-                        ).permitAll()
+
+
                         .requestMatchers(
                                 "/api/incidents/**"
                         ).hasAnyRole(

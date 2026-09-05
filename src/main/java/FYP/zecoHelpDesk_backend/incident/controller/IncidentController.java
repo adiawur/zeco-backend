@@ -8,6 +8,7 @@ import FYP.zecoHelpDesk_backend.incident.entity.IncidentComplaint;
 import FYP.zecoHelpDesk_backend.incident.repository.IncidentRepository;
 import FYP.zecoHelpDesk_backend.incident.service.IncidentComplaintService;
 import FYP.zecoHelpDesk_backend.incident.service.IncidentService;
+import org.springframework.security.core.Authentication;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -176,6 +177,21 @@ public class IncidentController {
 
         return complaintService.submit(
                 request
+        );
+    }
+
+    // =========================================================
+// SUPERVISOR
+// GET INCIDENTS FROM MY ZONE ONLY
+// =========================================================
+
+    @GetMapping("/supervisor")
+    public List<IncidentResponse> getSupervisorIncidents(
+            Authentication authentication
+    ) {
+
+        return service.getSupervisorZoneIncidents(
+                authentication
         );
     }
 }

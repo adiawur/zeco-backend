@@ -3,11 +3,13 @@ package FYP.zecoHelpDesk_backend.user.service;
 import FYP.zecoHelpDesk_backend.user.dto.CreateUserRequest;
 import FYP.zecoHelpDesk_backend.user.dto.UpdateUserRequest;
 import FYP.zecoHelpDesk_backend.user.dto.UserResponse;
+import FYP.zecoHelpDesk_backend.user.entity.Role;
 import FYP.zecoHelpDesk_backend.user.entity.User;
 import FYP.zecoHelpDesk_backend.user.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -673,6 +675,49 @@ public class UserService {
         return toResponse(
                 savedUser
         );
+    }
+
+    public List<UserResponse> getTechniciansForSupervisor(
+            Authentication authentication
+    ) {
+
+        User supervisor =
+                repository
+                        .findByUsername(authentication.getName())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
+
+        if (
+                supervisor.getRole() == null ||
+                        !supervisor.getRole()
+                                .name()
+                                .equals("SUPERVISOR")
+        ) {
+            throw new RuntimeException(
+                    "Only supervisors can access technicians"
+            );
+        }
+
+        if (
+                supervisor.getZone() == null ||
+                        supervisor.getZone().isBlank()
+        ) {
+            throw new RuntimeException(
+                    "Supervisor has no assigned zone"
+            );
+        }
+
+        return repository
+                .findByRoleAndZoneIgnoreCaseAndActiveTrue(
+                        Role.TECHNICIAN,
+                        supervisor.getZone()
+                )
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     }

@@ -242,4 +242,29 @@ public class AssignmentController {
                 authentication
         );
     }
+
+    // =========================================================
+// SUPERVISOR
+// REASSIGN INCIDENT
+// =========================================================
+
+    @PatchMapping(
+            "/supervisor/assignments/{id}/reassign/{technicianId}"
+    )
+    public AssignmentResponse reassign(
+
+            @PathVariable Long id,
+
+            @PathVariable Long technicianId,
+
+            Authentication authentication
+
+    ) {
+
+        return service.reassign(
+                id,
+                technicianId,
+                authentication
+        );
+    }
 }

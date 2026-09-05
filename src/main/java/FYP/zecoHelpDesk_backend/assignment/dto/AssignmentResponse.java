@@ -1,5 +1,6 @@
 package FYP.zecoHelpDesk_backend.assignment.dto;
 
+import FYP.zecoHelpDesk_backend.incident.entity.IncidentStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -26,4 +27,36 @@ public class AssignmentResponse {
     private LocalDateTime assignedAt;
 
     private LocalDateTime completedAt;
+
+    // =====================================================
+    // INCIDENT INFORMATION
+    // =====================================================
+
+    private String incidentStatus;
+
+    private String priority;
+
+    private String incidentType;
+
+    private String location;
+
+    // =====================================================
+    // SLA
+    // =====================================================
+
+    private LocalDateTime slaDeadline;
+
+    private String slaStatus;
+
+    private Long remainingMinutes;
+
+    private Long elapsedMinutes;
+
+    // =====================================================
+    // ZONE
+    // =====================================================
+
+    private String zone;
+
+    private IncidentStatus status;
 }

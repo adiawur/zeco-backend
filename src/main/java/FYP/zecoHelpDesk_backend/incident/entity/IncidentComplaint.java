@@ -53,5 +53,9 @@ public class IncidentComplaint {
     @Column(nullable = false)
     private ComplaintStatus status;
 
+    private String reply;
 
+    private LocalDateTime repliedAt;
+
+    private String repliedBy;
 }

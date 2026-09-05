@@ -9,7 +9,10 @@ import FYP.zecoHelpDesk_backend.incident.entity.Incident;
 import FYP.zecoHelpDesk_backend.incident.entity.IncidentStatus;
 import FYP.zecoHelpDesk_backend.incident.entity.IncidentType;
 import FYP.zecoHelpDesk_backend.incident.entity.Priority;
+import org.springframework.security.core.Authentication;
 import FYP.zecoHelpDesk_backend.incident.repository.IncidentRepository;
+import FYP.zecoHelpDesk_backend.user.entity.User;
+import FYP.zecoHelpDesk_backend.user.repository.UserRepository;
 import FYP.zecoHelpDesk_backend.util.LocationUtil;
 import FYP.zecoHelpDesk_backend.util.Zone;
 import FYP.zecoHelpDesk_backend.util.ZoneUtils;
@@ -33,6 +36,7 @@ public class IncidentService {
 
     private final LocationUtil locationUtil;
     private final AssignmentRepository assignmentRepository;
+    private final UserRepository userRepository;
 
 
     // =========================================================
@@ -247,13 +251,41 @@ public class IncidentService {
     }
 
 
-    // =========================================================
-    // SLA STATUS
-    // =========================================================
+    /// =========================================================
+// SLA STATUS
+// =========================================================
+//
+// SLA states:
+//
+// NOT_APPLICABLE
+//      -> Incident has no SLA deadline
+//
+// COMPLETED
+//      -> Incident has been completed/resolved/closed
+//
+// BREACHED
+//      -> SLA deadline has passed while incident is still active
+//
+// AT_RISK
+//      -> 30 minutes or less remaining
+//
+// ON_TIME
+//      -> SLA is still within allowed time
+//
+// =========================================================
 
     private String calculateSlaStatus(
             Incident incident
     ) {
+
+        // -----------------------------------------------------
+        // NO SLA
+        // -----------------------------------------------------
+
+        if (incident == null) {
+
+            return "NOT_APPLICABLE";
+        }
 
         if (incident.getSlaDeadline() == null) {
 
@@ -261,8 +293,27 @@ public class IncidentService {
         }
 
 
+        // -----------------------------------------------------
+        // FINAL / COMPLETED STATUSES
+        // -----------------------------------------------------
+        //
+        // COMPLETED:
+        // Technician has finished the work.
+        //
+        // RESOLVED:
+        // Supervisor has verified/resolved the incident.
+        //
+        // CLOSED:
+        // Incident is fully closed.
+        //
+        // These statuses should not continue showing
+        // BREACHED or AT_RISK after the work is finished.
+        // -----------------------------------------------------
+
         if (
-                incident.getStatus() == IncidentStatus.RESOLVED
+                incident.getStatus() == IncidentStatus.COMPLETED
+                        ||
+                        incident.getStatus() == IncidentStatus.RESOLVED
                         ||
                         incident.getStatus() == IncidentStatus.CLOSED
         ) {
@@ -271,18 +322,35 @@ public class IncidentService {
         }
 
 
+        // -----------------------------------------------------
+        // CURRENT TIME
+        // -----------------------------------------------------
+
         LocalDateTime now =
                 LocalDateTime.now();
+
 
         LocalDateTime deadline =
                 incident.getSlaDeadline();
 
+
+        // -----------------------------------------------------
+        // SLA BREACHED
+        // -----------------------------------------------------
+        //
+        // If the deadline has already passed and the incident
+        // is still active, the SLA is breached.
+        // -----------------------------------------------------
 
         if (now.isAfter(deadline)) {
 
             return "BREACHED";
         }
 
+
+        // -----------------------------------------------------
+        // REMAINING TIME
+        // -----------------------------------------------------
 
         long remainingMinutes =
                 Duration.between(
@@ -291,11 +359,22 @@ public class IncidentService {
                 ).toMinutes();
 
 
+        // -----------------------------------------------------
+        // SLA AT RISK
+        // -----------------------------------------------------
+        //
+        // 30 minutes or less remaining.
+        // -----------------------------------------------------
+
         if (remainingMinutes <= 30) {
 
             return "AT_RISK";
         }
 
+
+        // -----------------------------------------------------
+        // SLA ON TIME
+        // -----------------------------------------------------
 
         return "ON_TIME";
     }
@@ -857,5 +936,77 @@ public class IncidentService {
 
         return LocalDateTime.now()
                 .isAfter(complaintTime);
+    }
+
+    // =========================================================
+// SUPERVISOR
+// GET INCIDENTS FROM MY ZONE ONLY
+// =========================================================
+
+    public List<IncidentResponse> getSupervisorZoneIncidents(
+            Authentication authentication
+    ) {
+
+        User supervisor =
+                userRepository
+                        .findByUsername(authentication.getName())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Supervisor not found"
+                                )
+                        );
+
+        // -----------------------------------------------------
+        // CHECK ROLE
+        // -----------------------------------------------------
+
+        if (
+                supervisor.getRole() == null ||
+                        !supervisor.getRole()
+                                .name()
+                                .equals("SUPERVISOR")
+        ) {
+
+            throw new RuntimeException(
+                    "Only supervisors can access this resource"
+            );
+        }
+
+        // -----------------------------------------------------
+        // CHECK ZONE
+        // -----------------------------------------------------
+
+        if (
+                supervisor.getZone() == null ||
+                        supervisor.getZone().isBlank()
+        ) {
+
+            throw new RuntimeException(
+                    "Supervisor has no assigned zone"
+            );
+        }
+
+        String supervisorZone =
+                supervisor.getZone();
+
+        // -----------------------------------------------------
+        // FILTER INCIDENTS BY ZONE
+        // -----------------------------------------------------
+
+        return repository
+                .findAll()
+                .stream()
+                .filter(incident -> {
+
+                    Zone incidentZone =
+                            getIncidentZone(incident);
+
+                    return incidentZone.name()
+                            .equalsIgnoreCase(
+                                    supervisorZone
+                            );
+                })
+                .map(this::toResponse)
+                .toList();
     }
 }
